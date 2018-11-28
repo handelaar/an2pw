@@ -1,0 +1,28 @@
+#!/usr/bin/env php
+<?php
+
+/**
+ * an2pw - Convert Akoma Ntoso XML to PublicWhip XML
+ *
+ * @author   John Handelaar <john@handelaar.org>
+ */
+
+
+# Load example file 
+$input = simplexml_load_file('data/dail20181127.xml');
+
+
+
+# SimpleXML's xpath support doesn't work with Akoma Ntoso files 
+# unless the namespace is registered and then used in xpath calls
+
+$input->registerXPathNamespace('ns', "http://docs.oasis-open.org/legaldocml/ns/akn/3.0/CSD13");
+
+
+# Pull and print top-level section titles only
+
+foreach($input->xpath('//ns:debate/ns:debateBody/ns:debateSection') as $section) {
+    if (isset($section->heading)) {
+        echo $section->heading . "\n";
+    }
+}
