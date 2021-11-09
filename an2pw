@@ -3,26 +3,135 @@
 
 /**
  * an2pw - Convert Akoma Ntoso XML to PublicWhip XML
- *
+ * 
+ * WARNING: HIGHLY-EXPERIMENTAL ALPHA-AS-FUCK TEST CODE
+ * WARNING: NOT FOR USE
+ * 
+ * @version  0.1
+ * @license  https://opensource.org/licenses/BSD-2-Clause BSD 2-clause license
  * @author   John Handelaar <john@handelaar.org>
  */
 
+$akomantoso = new ConvertAkomantosoToPublicwhip();
 
-# Load example file 
-$input = simplexml_load_file('data/dail20181127.xml');
+$akomantoso->toPublicWhip();
 
+die();
 
-
-# SimpleXML's xpath support doesn't work with Akoma Ntoso files 
-# unless the namespace is registered and then used in xpath calls
-
-$input->registerXPathNamespace('ns', "http://docs.oasis-open.org/legaldocml/ns/akn/3.0/CSD13");
+class ConvertAkomantosoToPublicwhip {
 
 
-# Pull and print top-level section titles only
 
-foreach($input->xpath('//ns:debate/ns:debateBody/ns:debateSection') as $section) {
-    if (isset($section->heading)) {
-        echo $section->heading . "\n";
+    public function __construct() {
+        # Load example file 
+
+        $this->akoma = simplexml_load_file('data/dail20181127.xml');
+        $this->output = array();
+        $this->house = 'dail';
+
+        # SimpleXML's xpath support doesn't work with Akoma Ntoso files 
+        # unless the namespace is registered and then used in xpath calls
+
+        $this->akoma->registerXPathNamespace('ns', "http://docs.oasis-open.org/legaldocml/ns/akn/3.0/CSD13");
+
     }
+
+    public function toPublicWhip() {
+        # Pull and print major and minor headings only
+
+        foreach($this->akoma->xpath('//ns:debate/ns:debateBody/ns:debateSection') as $section) {
+
+            if (isset($section->heading)) {
+                $row = $this->heading("major",$section->heading);
+                $output[] .= $row;
+                echo $row . "\n";
+            }
+            if (count($section->debateSection)) {
+
+                foreach($section->debateSection as $subsection) {
+
+                    $row = $this->heading("minor",$subsection->heading);
+                    $output[] .= "    " . $row;
+                    echo "    " . $row . "\n";
+
+                    foreach ($subsection->children() as $child) {
+
+                        if ($child->getName() == "heading") {
+                            continue;
+                        } elseif ($child->getName() == "speech") {
+                            $row = $this->speech(NULL,$child);
+                            $output[] .= "    " . $row;
+
+                        }
+                        echo "        " . $child->getName();
+                        $domnode = dom_import_simplexml($child);
+                        echo " -- line " . $domnode->getLineNo() . "\n";
+                        unset($domnode);
+                    }
+                }
+            }
+        }
+            
+    }
+
+    private function speech($type, $object) {
+
+        // Get time for publicwhip format
+        // "2018-12-12T10:30:00+00:00" -> "10.30.00"
+        
+        $objAttrs = $object->from->recordedTime->attributes();
+        $dateobj = DateTime::createFromFormat('Y-m-d\TH:i:sP', (string) $objAttrs["time"], new DateTimeZone('Europe/Dublin'));
+        $date = date_format($dateobj,'Y-m-d');
+        $time = date_format($dateobj,'H:i:s');
+        echo "        " . $date . 'T' . $time;
+
+    }
+
+
+
+    /*
+
+        <minor-heading id="com.kildarestreet/dail/2018-12-12a.1" nospeaker="true" time="10:30:00" url="">Prelude</minor-heading>
+        <speech id="com.kildarestreet/dail/2018-12-12a.2" nospeaker="true" time="10:30:00" ><p>Chuaigh an Cathaoirleach Gníomhach (Deputy Eugene Murphy) i gceannas ar 10.30 a.m.</p></speech>
+        <speech id="com.kildarestreet/dail/2018-12-12a.3" nospeaker="true" time="10:30:00" ><p>Prayer and Reflection.</p></speech>
+        <major-heading id="com.kildarestreet/dail/2018-12-12a.5" nospeaker="true" time="10:30:00" url="http://debatesarchive.oireachtas.ie/debates%20authoring/debateswebpack.nsf/takes/dail2018121200003#A00100">Estimates for Public Services 2018: Message from Select Committee</major-heading>
+
+        // <reply><ques><speech>
+        <reply id="com.kildarestreet/dail/2018-12-12a.13.r" 
+            speakerid="com.kildarestreet/member/1213" 
+            speakername="Shane Ross" time="10:30:00" 
+            url="http://debatesarchive.oireachtas.ie/debates%20authoring/debateswebpack.nsf/takes/dail2018121200003#A00800">
+            <p>As the Deputy is aware BusConnects is one of the flagship investments to be delivered under Project Ireland 2040 and the ten year national development plan, NDP.  The programme is made up of a number of different components, namely, building a new network of improved bus and cycle lanes; redesigning and expanding the network of bus services; introducing simpler fare structures and new ticketing technology; implementing a new bus livery; providing new and improved bus stops and shelters and new park and ride sites; and, importantly, transitioning the entire urban PSO bus fleet to low emission technologies.</p>  
+            <p>  The objective of these proposals under BusConnects is to improve bus journey times that will benefit many millions of passenger journeys each year; provide a bus service that is easier to use and understand; enable more people to travel by bus than ever before; and also provide a network of cycling infrastructure that will enable more people to cycle across the city.</p>  
+            <p>  Each of the components is significant in its own right while collectively they have the potential to transform how we use the bus in Dublin and in the other cities when rolled out there.  The Deputy's question seems to suggest discord where none exists.  All significant investment programmes such as BusConnects are made up of different components which can be progressed at different times and at different speeds.</p>  
+            <p>  With BusConnects Dublin, the National Transport Authority, NTA, has been running the consultation phase on two distinct components, first, the network redesign - this is about configuration of all the bus services that will run for passengers - and, second, the proposed new bus lanes.  These are the dedicated road infrastructure that will form the 16 main corridors into the city on which the bus services, and cycleways, will run.</p>  
+            <p>  We all know of the significant public consultation that has taken place in recent months in relation to the bus network.  There was a huge response to that consultation, with more than 30,000 submissions.  The NTA is currently considering all submissions received with a view to issuing a revised network design for further public consultation in 2019.</p>  
+            <p>  It is envisaged that the implementation of the final network will take place in 2020.  The network redesign can be implemented on the existing road network with some enhancements at key interchange locations which will be provided as we roll out the new network.</p>
+        </reply>
+
+        
+    */
+
+    private function heading($type,$object) {
+        
+        // Get time for publicwhip format
+        // "2018-12-12T10:30:00+00:00" -> "10.30.00"
+        
+        $objAttrs = $object->recordedTime->attributes();
+        $dateobj = DateTime::createFromFormat('Y-m-d\TH:i:sP', (string) $objAttrs["time"], new DateTimeZone('Europe/Dublin'));
+        $date = date_format($dateobj,'Y-m-d');
+        $time = date_format($dateobj,'H:i:s');
+        
+        $output = "<$type-heading " .
+            'id="com.kildarestreet/dail/' . $date . 'a.counter" ' .
+            'nospeaker="true" ' .
+            'time="' . $time . '" ' .
+            'url="' . '">' .
+            trim($object) .
+            "</$type-heading>";
+        
+        return($output);
+    
+    }
+
 }
