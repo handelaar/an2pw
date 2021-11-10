@@ -7,20 +7,20 @@
  * WARNING: HIGHLY-EXPERIMENTAL ALPHA-AS-FUCK TEST CODE
  * WARNING: NOT FOR USE
  * 
- * @version  0.1
+ * @version  0.0.1
  * @license  https://opensource.org/licenses/BSD-2-Clause BSD 2-clause license
  * @author   John Handelaar <john@handelaar.org>
- */
+ */ 
 
+
+ // Test script; to be removed before release
 $akomantoso = new ConvertAkomantosoToPublicwhip();
-
+$akomantoso->setChamber('dail');
+$akomantoso->setSpeakers(array('name' => 'publicwhip_id'));
 $akomantoso->toPublicWhip();
-
 die();
 
 class ConvertAkomantosoToPublicwhip {
-
-
 
     public function __construct() {
         # Load example file 
@@ -28,6 +28,10 @@ class ConvertAkomantosoToPublicwhip {
         $this->akoma = simplexml_load_file('data/dail20181127.xml');
         $this->output = array();
         $this->house = 'dail';
+        $this->output = array();
+
+        # Start item counter
+        $this->$counter = 0;
 
         # SimpleXML's xpath support doesn't work with Akoma Ntoso files 
         # unless the namespace is registered and then used in xpath calls
@@ -36,43 +40,80 @@ class ConvertAkomantosoToPublicwhip {
 
     }
 
+
     public function toPublicWhip() {
-        # Pull and print major and minor headings only
+        
+        // Loop through each debateSection in Akoma Ntoso simplexml object
 
         foreach($this->akoma->xpath('//ns:debate/ns:debateBody/ns:debateSection') as $section) {
 
+            // Generate publicwhip <majorheading>
+
+            $this->counter ++;
             if (isset($section->heading)) {
                 $row = $this->heading("major",$section->heading);
-                $output[] .= $row;
+                $this->output[] .= $row;
                 echo $row . "\n";
             }
-            if (count($section->debateSection)) {
 
-                foreach($section->debateSection as $subsection) {
+            // Loop through child objects and process by type; 
+            // ignore heading because we just did that above
 
-                    $row = $this->heading("minor",$subsection->heading);
-                    $output[] .= "    " . $row;
-                    echo "    " . $row . "\n";
+            foreach($section->children() as $child) {
 
-                    foreach ($subsection->children() as $child) {
+                switch($child->getName()) {
 
-                        if ($child->getName() == "heading") {
-                            continue;
-                        } elseif ($child->getName() == "speech") {
-                            $row = $this->speech(NULL,$child);
-                            $output[] .= "    " . $row;
-
-                        }
-                        echo "        " . $child->getName();
+                    case "heading":
+                        break;
+                    
+                    case "speech":
+                    case "summary":
+                        $this->counter++;
+                        echo "    " . $this->counter . "  " . $child->getName();
                         $domnode = dom_import_simplexml($child);
-                        echo " -- line " . $domnode->getLineNo() . "\n";
+                        echo " --  line " . $domnode->getLineNo() . "\n";
                         unset($domnode);
-                    }
+                        break;
+                    
+                    // If there is a nested debateSection, do that loop inside this loop
+                    
+                    case "debateSection":
+                        $row = $this->heading("minor",$child->heading);
+                        $this->output[] .= "    " . $row;
+                        echo "    " . $row . "\n";
+                        foreach($child->children() as $grandchild) {
+
+                            switch($grandchild->getName()) {
+                                case "heading":
+                                    break;
+
+                                case "speech":
+                                case "summary":
+                                    $this->counter++;
+                                    echo "        " . $this->counter . "  " . $grandchild->getName();
+                                    $domnode = dom_import_simplexml($grandchild);
+                                    echo " --  line " . $domnode->getLineNo() . "\n";
+                                    unset($domnode);
+                                    break;
+                                }
+                            }
+                        break;
+
+                    // Unrecognised child types cause a crash so that we can't ignore
+                    // that this processor is incomplete
+
+                    default:
+                        echo "error\n";
+                        die();
+                        break;
                 }
+
             }
+            
         }
             
     }
+
 
     private function speech($type, $object) {
 
@@ -86,7 +127,6 @@ class ConvertAkomantosoToPublicwhip {
         echo "        " . $date . 'T' . $time;
 
     }
-
 
 
     /*
@@ -112,6 +152,7 @@ class ConvertAkomantosoToPublicwhip {
         
     */
 
+
     private function heading($type,$object) {
         
         // Get time for publicwhip format
@@ -123,7 +164,7 @@ class ConvertAkomantosoToPublicwhip {
         $time = date_format($dateobj,'H:i:s');
         
         $output = "<$type-heading " .
-            'id="com.kildarestreet/dail/' . $date . 'a.counter" ' .
+            'id="com.kildarestreet/dail/' . $date . 'a.' . $this->counter . ' ' .
             'nospeaker="true" ' .
             'time="' . $time . '" ' .
             'url="' . '">' .
@@ -133,5 +174,22 @@ class ConvertAkomantosoToPublicwhip {
         return($output);
     
     }
+
+
+    public function setChamber(string $chamber) {
+        
+        # do things
+        
+        return;
+    }
+
+
+    public function setSpeakers(array $speakers) {
+        
+        # do things
+        
+        return;
+    }
+
 
 }
