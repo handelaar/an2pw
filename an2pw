@@ -8,7 +8,7 @@
  * WARNING: NOT FOR USE
  * 
  * @version  0.0.1
- * @license  https://opensource.org/licenses/BSD-2-Clause BSD 2-clause license
+ * @license  https://opensource.org/licenses/GPL-2.0 GPL 2
  * @author   John Handelaar <john@handelaar.org>
  */ 
 
@@ -24,14 +24,14 @@ class ConvertAkomantosoToPublicwhip {
 
     public function __construct() {
         # Load example file 
+        # #TODO: replace this with specified config options
 
         $this->akoma = simplexml_load_file('data/dail20181127.xml');
-        $this->output = array();
         $this->house = 'dail';
         $this->output = array();
 
         # Start item counter
-        $this->$counter = 0;
+        $this->counter = 0;
 
         # SimpleXML's xpath support doesn't work with Akoma Ntoso files 
         # unless the namespace is registered and then used in xpath calls

@@ -1,0 +1,19 @@
+{
+    "name": "handelaar/akoma2publicwhip",
+    "type": "library",
+    "description": "Convert Akoma Ntoso <debate> transcripts into publicwhip XML",
+    "version": "0.0.1",
+    "keywords": ["akomantoso","publicwhip","kildarestreet","theyworkforyou","parliament"],
+    "authors": [
+        {
+            "name": "John Handelaar",
+            "email": "john@handelaar.org",
+            "homepage": "https://www.kildarestreet.com",
+            "role": "Developer"
+        }
+    ],
+    "require": {
+        "php": ">=7.0",
+        "ext-xml": "*"
+    }
+}
