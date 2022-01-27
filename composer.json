@@ -3,7 +3,7 @@
     "type": "library",
     "description": "Convert Akoma Ntoso <debate> transcripts into publicwhip XML",
     "version": "0.0.1",
-    "keywords": ["akomantoso","publicwhip","kildarestreet","theyworkforyou","parliament"],
+    "keywords": ["akomantoso","publicwhip","parliament","oireachtas","hansard","kildarestreet","theyworkforyou","openaustralia"],
     "authors": [
         {
             "name": "John Handelaar",
