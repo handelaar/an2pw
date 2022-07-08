@@ -16,25 +16,33 @@
  // Test script; to be removed before release
 $akomantoso = new ConvertAkomantosoToPublicwhip('data/dail20181127.xml');
 $akomantoso->setChamber('dail');
-$akomantoso->setSpeakers(array('name' => 'publicwhip_id'));
+$akomantoso->setSpeakers(array('eID' => 'publicwhip_id'));
 $akomantoso->toPublicWhip();
 die();
 
 class ConvertAkomantosoToPublicwhip {
 
     public function __construct($filename) {
+        
+        $this->debug = FALSE;
+        
         # Load example file 
         # 
         # TODO: replace this with specified config options
 
         $this->akoma = simplexml_load_file($filename);
 
-        # Assumption: filename contains file date in format YYYYmmdd
+        # Filename assumed to contain date in format YYYYmmdd; this regex just removes non-numeric chars from filename
+        # TODO: move this to config 
         $this->date = DateTime::createFromFormat('Ymd H:i:s', preg_replace("/[^0-9]/", "", $filename) . " 00:00:00");
         
+        # TODO: move these to config
         $this->namespace = 'com.kildarestreet'; # use eg 'uk.org.publicwhip' if you're not in Ireland
         $this->revision = 'a';
+
+
         $this->output = array();
+
 
         # Start item counter
 
@@ -79,7 +87,7 @@ class ConvertAkomantosoToPublicwhip {
                         break;
                     
                     case "summary":
-                    
+
                         $this->counter++;
 
                         $domnode = dom_import_simplexml($child);
@@ -99,16 +107,43 @@ class ConvertAkomantosoToPublicwhip {
                         break;                    
                     
                     case "speech":
+
                         $this->counter++;
-                        echo "    " . $this->counter . "  " . $child->getName();
-                        $domnode = dom_import_simplexml($child);
-                        echo " --  line " . $domnode->getLineNo() . "\n";
+
+                        //$domnode = dom_import_simplexml($child);
+
+                        //if(str_replace('#','',$child->attributes()->by) == "RoisinShortall") {
+                        //    echo "\n"; print_r($child->p); echo"\n"; ;
+                        //}
+                        
+
+                        echo "    <speech " .
+                            'id="' . $this->namespace . '/' . $this->chamber . '/' . $this->date->format('Y-m-d') . $this->revision . '.' . 
+                            $this->counter . '" ' . 'speakerid="' . str_replace('#','',trim($child->attributes()->by)) . '" ' .
+                            'speakername="' .  trim($child->from)  .  '" ' ;  
+
+                        # Don't add timestamp if we haven't yet encountered an object with a timestamp
+                        if($this->date->format('H:i:s') !== "00:00:00") {
+                            echo 'time="' . $this->date->format('H:i:s') . '" '; 
+                        }
+                        echo 'url="' . '">';
+                        
+                        $speechbody = "";
+                        foreach($child as $content) {
+                            if(isset($content->attributes()->eId)) {
+                                $domnode = dom_import_simplexml($content);
+                                echo "<" . $content->getName() . ">" . trim($domnode->nodeValue) . "</" . $content->getName() . ">";
+                            }
+                        }
+                        echo "</speech>\n";
+
                         unset($domnode);
-                        break;
+                        break;                    
 
                     // If there is a nested debateSection, do that loop inside this loop
                     
                     case "debateSection":
+			$this->counter++;
                         $row = $this->heading("minor",$child->heading);
                         $this->output[] .= "    " . $row;
                         echo "    " . $row . "\n";
@@ -191,7 +226,7 @@ class ConvertAkomantosoToPublicwhip {
     private function heading($type,$object) {
         
         // Get time for publicwhip format
-        // "2018-12-12T10:30:00+00:00" -> "10.30.00"
+        // "2018-12-12T10:30:00+00:00" -> "10:30:00"
         
         $objAttrs = $object->recordedTime->attributes();
         $this->date = DateTime::createFromFormat('Y-m-d\TH:i:sP', (string) $objAttrs["time"], new DateTimeZone('Europe/Dublin'));
