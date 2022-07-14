@@ -7,7 +7,7 @@
  * WARNING: HIGHLY-EXPERIMENTAL ALPHA-AS-FUCK TEST CODE
  * WARNING: NOT FOR USE
  * 
- * @version  0.0.1
+ * @version  0.1.0
  * @license  https://opensource.org/licenses/GPL-2.0 GPL 2
  * @author   John Handelaar <john@handelaar.org>
  */ 
@@ -18,6 +18,7 @@ $akomantoso = new ConvertAkomantosoToPublicwhip('data/dail20181127.xml');
 $akomantoso->setChamber('dail');
 $akomantoso->setSpeakers(array('eID' => 'publicwhip_id'));
 $akomantoso->toPublicWhip();
+$akomantoso->write();
 die();
 
 class ConvertAkomantosoToPublicwhip {
@@ -29,7 +30,6 @@ class ConvertAkomantosoToPublicwhip {
         # Load example file 
         # 
         # TODO: replace this with specified config options
-
         $this->akoma = simplexml_load_file($filename);
 
         # Filename assumed to contain date in format YYYYmmdd; this regex just removes non-numeric chars from filename
@@ -72,7 +72,8 @@ class ConvertAkomantosoToPublicwhip {
             if (isset($section->heading)) {
                 $row = $this->heading("major",$section->heading);
                 $this->output[] .= $row;
-                echo $row . "\n";
+                #debug
+                #echo $row . "\n";
             }
 
             // Loop through child objects and process by type; 
@@ -89,78 +90,38 @@ class ConvertAkomantosoToPublicwhip {
                     case "summary":
 
                         $this->counter++;
-
-                        $domnode = dom_import_simplexml($child);
-
-                        echo "    <speech " .
-                            'id="' . $this->namespace . '/' . $this->chamber . '/' . $this->date->format('Y-m-d') . $this->revision . '.' . 
-                            $this->counter . '" ' . 'nospeaker="true" ';
-
-                        # Don't add timestamp if we haven't yet encountered an object with a timestamp
-                        if($this->date->format('H:i:s') !== "00:00:00") {
-                            echo 'time="' . $this->date->format('H:i:s') . '" '; 
-                        }
-
-                        echo 'url="' . '"><p>' . trim($domnode->nodeValue) . "</p></speech>\n";
-
-                        unset($domnode);
+                        $this->output[] .= $this->speechProcedural($child);
                         break;                    
                     
                     case "speech":
 
                         $this->counter++;
-
-                        //$domnode = dom_import_simplexml($child);
-
-                        //if(str_replace('#','',$child->attributes()->by) == "RoisinShortall") {
-                        //    echo "\n"; print_r($child->p); echo"\n"; ;
-                        //}
-                        
-
-                        echo "    <speech " .
-                            'id="' . $this->namespace . '/' . $this->chamber . '/' . $this->date->format('Y-m-d') . $this->revision . '.' . 
-                            $this->counter . '" ' . 'speakerid="' . str_replace('#','',trim($child->attributes()->by)) . '" ' .
-                            'speakername="' .  trim($child->from)  .  '" ' ;  
-
-                        # Don't add timestamp if we haven't yet encountered an object with a timestamp
-                        if($this->date->format('H:i:s') !== "00:00:00") {
-                            echo 'time="' . $this->date->format('H:i:s') . '" '; 
-                        }
-                        echo 'url="' . '">';
-                        
-                        $speechbody = "";
-                        foreach($child as $content) {
-                            if(isset($content->attributes()->eId)) {
-                                $domnode = dom_import_simplexml($content);
-                                echo "<" . $content->getName() . ">" . trim($domnode->nodeValue) . "</" . $content->getName() . ">";
-                            }
-                        }
-                        echo "</speech>\n";
-
-                        unset($domnode);
+                        $this->output[] .= $this->speech($child);
                         break;                    
 
                     // If there is a nested debateSection, do that loop inside this loop
                     
                     case "debateSection":
-			$this->counter++;
+			            $this->counter++;
                         $row = $this->heading("minor",$child->heading);
-                        $this->output[] .= "    " . $row;
-                        echo "    " . $row . "\n";
+                        $this->output[] .=  $row;
+                        #echo "    " . $row . "\n";
                         foreach($child->children() as $grandchild) {
 
                             switch($grandchild->getName()) {
                                 case "heading":
                                     break;
 
-                                case "speech":
                                 case "summary":
+
                                     $this->counter++;
-                                    echo "        " . $this->counter . "  " . $grandchild->getName();
-                                    $domnode = dom_import_simplexml($grandchild);
-                                    echo " --  line " . $domnode->getLineNo() . "\n";
-                                    unset($domnode);
-                                    break;
+                                    $this->output[] .= $this->speechProcedural($grandchild);
+                                    break;                    
+            
+                                case "speech":
+                                    $this->counter++;
+                                    $this->output[] .= $this->speech($grandchild);
+                                    break;                    
                                 }
                             }
                         break;
@@ -179,22 +140,56 @@ class ConvertAkomantosoToPublicwhip {
                 }
 
             }
-            
+            print_r($this->output);
         }
             
     }
 
+    private function speechProcedural($object) {
 
-    private function speech($type, $object) {
+        $domnode = dom_import_simplexml($object);
 
-        // Get time for publicwhip format
-        // "2018-12-12T10:30:00+00:00" -> "10.30.00"
+        $speech =  "    <speech " .
+            'id="' . $this->namespace . '/' . $this->chamber . '/' . $this->date->format('Y-m-d') . $this->revision . '.' . 
+            $this->counter . '" ' . 'nospeaker="true" ';
+
+        # Don't add timestamp if we haven't yet encountered an object with a timestamp
+        if($this->date->format('H:i:s') !== "00:00:00") {
+            $speech .= 'time="' . $this->date->format('H:i:s') . '" '; 
+        }
+
+        $speech .= 'url="' . '"><p>' . trim($domnode->nodeValue) . "</p></speech>";
         
-        $objAttrs = $object->from->recordedTime->attributes();
-        $this->date = DateTime::createFromFormat('Y-m-d\TH:i:sP', (string) $objAttrs["time"], new DateTimeZone('Europe/Dublin'));
-        $this->date = date_format($this->date,'Y-m-d');
-        $this->time = date_format($this->date,'H:i:s');
-        echo "        " . $date . 'T' . $time;
+        return $speech;
+
+    }
+
+
+    private function speech($object) {
+
+        $speech = "    <speech " .
+            'id="' . $this->namespace . '/' . $this->chamber . '/' . $this->date->format('Y-m-d') . $this->revision . '.' . 
+            $this->counter . '" ' . 'speakerid="' . str_replace('#','',trim($object->attributes()->by)) . '" ' .
+            'speakername="' .  trim($object->from)  .  '" ' ;  
+
+        # Don't add timestamp if we haven't yet encountered an object with a timestamp
+        if($this->date->format('H:i:s') !== "00:00:00") {
+            $speech .= 'time="' . $this->date->format('H:i:s') . '" '; 
+        }
+
+        $speech .= 'url="' . '">';
+        
+        foreach($object as $content) {
+            if(isset($content->attributes()->eId)) {
+                $speech .= "<" . $content->getName() . ">";
+                $speech .= $this->innerXML($content);
+                $speech .= "</" . $content->getName() . ">";
+                
+            }
+        }
+        $speech .= "</speech>";
+
+        return $speech;
 
     }
 
@@ -260,5 +255,21 @@ class ConvertAkomantosoToPublicwhip {
         return;
     }
 
+    public function write() {
 
+        # do things
+
+        return;
+    }
+
+    private function innerXML($xml) {
+
+      $innerXML= '';
+
+      foreach (dom_import_simplexml($xml)->childNodes as $child) {
+          $innerXML .= $child->ownerDocument->saveXML( $child );
+      }
+
+      return $innerXML;
+    }
 }
