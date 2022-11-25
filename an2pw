@@ -14,8 +14,10 @@
 
 
  // Test script; to be removed before release
-$akomantoso = new ConvertAkomantosoToPublicwhip('data/dail20181127.xml');
-$akomantoso->setChamber('dail');
+#$akomantoso = new ConvertAkomantosoToPublicwhip('data/dail20181127.xml');
+#$akomantoso = new ConvertAkomantosoToPublicwhip('data/seanad20181127.xml');
+$akomantoso = new ConvertAkomantosoToPublicwhip('data/wrans20181211.xml');
+$akomantoso->setChamber('seanad');
 $akomantoso->setSpeakers(array('eID' => 'publicwhip_id'));
 $akomantoso->toPublicWhip();
 $akomantoso->write();
@@ -77,6 +79,8 @@ class ConvertAkomantosoToPublicwhip {
 
             $this->counter ++;
             if (isset($section->heading)) {
+                $domnode = dom_import_simplexml($section->heading);
+                #echo " --  line " . $domnode->getLineNo() . "\n";
                 $row = $this->heading("major",$section->heading);
                 $this->output[] .= $row;
             }
@@ -109,8 +113,12 @@ class ConvertAkomantosoToPublicwhip {
                     case "debateSection":
 
             			$this->counter++;
-                        $row = $this->heading("minor",$child->heading);
-                        $this->output[] .=  $row;
+                        if(!$child->attributes()->name == "division") {
+                            $row = $this->heading("minor",$child->heading);
+                            $this->output[] .=  $row;
+    
+                        }
+
                         foreach($child->children() as $grandchild) {
 
                             switch($grandchild->getName()) {
@@ -127,10 +135,17 @@ class ConvertAkomantosoToPublicwhip {
                                     $this->output[] .= $this->speech($grandchild);
                                     break;
 
-                                /*case "question":
+                                case "question":
                                     $this->counter++;
                                     $this->output[] .= $this->question($grandchild);
-                                    break;*/
+                                    break;
+
+                                case "debateSection":   # this is probably a division
+                                    $this->counter++;
+                                    #$this->output[] .= $this->division($grandchild);
+                                    $this->output[] .= "division";
+                                    print_r($grandchild);
+                                    break;
 
                                 default:
                                     $this->counter++;
@@ -138,7 +153,7 @@ class ConvertAkomantosoToPublicwhip {
                                     $domnode = dom_import_simplexml($grandchild);
                                     echo " --  line " . $domnode->getLineNo() . "\n";
                                     unset($domnode);
-                                    #die();
+                                    die();
                                     break;
                                 }
                             }
@@ -185,6 +200,97 @@ class ConvertAkomantosoToPublicwhip {
     }
 
 
+    private function question($object) {
+
+        $this->lastwasquestion = TRUE;
+
+        foreach($object as $content) {
+            if(isset($content->attributes()->eId)) {
+                $question = $content->asXML();
+
+                # Because tag regexing doesn't work
+                # 1. Wrap qnumday in <i> 
+                $pieces = explode("<b>",$question);
+                $pieces[0] = "<p><i>" . trim($pieces[0]) . "</i> ";
+
+                # 2. Fish out name of questioner
+                $qnameparts = explode("</b>", $pieces[1]);
+                $qname = trim(str_replace(array("Deputy ", "Senator "),"",$qnameparts[0]));
+                unset ($qnameparts);
+
+                # 3. Normalise remainder of question
+                $qcontentparts = explode("</b>",$pieces[2]);
+                $pieces[1] = "To ask the ";
+                $pieces[2] = implode("", $qcontentparts);
+                $pieces[2] = str_replace("[","<b>[", $pieces[2]);
+                $pieces[2] = str_replace("]","]</b>", $pieces[2]);
+                unset ($qcontentparts);
+                $question = implode($pieces);
+            }
+        }
+
+        $speech = "    <ques " .
+            'id="' . $this->namespace . '/' . $this->chamber . '/' . $this->date->format('Y-m-d') . $this->revision . '.' . 
+            $this->counter . '.q' . '" ' . 'speakerid="' . str_replace('#','',trim($object->attributes()->by)) . '" ' .
+            'speakername="' .  $qname  .  '" ' ;  
+
+        # Don't add timestamp if we haven't yet encountered an object with a timestamp
+        if($this->date->format('H:i:s') !== "00:00:00") {
+            $speech .= 'time="' . $this->date->format('H:i:s') . '" '; 
+        }
+
+        $speech .= 'url="' . '">';
+        
+        $speech .= $question;
+
+        $speech .= "</ques>";
+
+        return $speech;
+
+
+    }
+
+    private function division($object) {
+        #print_r($object);
+        /*
+
+        <speech id="com.kildarestreet/seanad/2018-11-27a.110/1" nospeaker="true" time="14:30:00" url="http://debatesarchive.oireachtas.ie/debates%20authoring/debateswebpack.nsf/takes/seanad2018112700002#RR00100"><p>Question put:</p><p>The Seanad divided: Tá, 13; Níl, 7.</p><br/><br/><p>Tellers: Tá, Senators Kieran O'Donnell and John O'Mahony; Níl, Senators Rose Conway-Walsh and Fintan Warfield.</p></speech>
+            <division id="com.kildarestreet/seanad/2018-11-27a.110/2" nospeaker="true" divdate="2018-11-27" time="14:30:00" url="http://debatesarchive.oireachtas.ie/debates%20authoring/debateswebpack.nsf/takes/seanad2018112700002#RR00100">
+                <divisioncount ayes="13" noes="7" abstain="0" />
+                    <mplist vote="aye">
+                        <mpname id="com.kildarestreet/member/1379" vote="aye">Victor Boyhan</mpname>
+                        <mpname id="com.kildarestreet/member/1409" vote="aye">Colm Burke</mpname>
+                        <mpname id="com.kildarestreet/member/1423" vote="aye">Ray Butler</mpname>
+                        <mpname id="com.kildarestreet/member/1391" vote="aye">Jerry Buttimer</mpname>
+                        <mpname id="com.kildarestreet/member/1424" vote="aye">Frank Feighan</mpname>
+                        <mpname id="com.kildarestreet/member/1429" vote="aye">Billy Lawless</mpname>
+                        <mpname id="com.kildarestreet/member/1438" vote="aye">Anthony Lawlor</mpname>
+                        <mpname id="com.kildarestreet/member/1425" vote="aye">Michelle Mulherin</mpname>
+                        <mpname id="com.kildarestreet/member/1374" vote="aye">Kieran O'Donnell</mpname>
+                        <mpname id="com.kildarestreet/member/1426" vote="aye">John O'Mahony</mpname>
+                        <mpname id="com.kildarestreet/member/1431" vote="aye">P&aacute;draig &Oacute; C&eacute;idigh</mpname>
+                        <mpname id="com.kildarestreet/member/1421" vote="aye">James Reilly</mpname>
+                        <mpname id="com.kildarestreet/member/1399" vote="aye">Neale Richmond</mpname>
+                    </mplist>
+                    <mplist vote="no">
+                        <mpname id="com.kildarestreet/member/1408" vote="no">Frances Black</mpname>
+                        <mpname id="com.kildarestreet/member/1378" vote="no">Rose Conway Walsh</mpname>
+                        <mpname id="com.kildarestreet/member/1405" vote="no">Alice Mary Higgins</mpname>
+                        <mpname id="com.kildarestreet/member/1417" vote="no">Kevin Humphreys</mpname>
+                        <mpname id="com.kildarestreet/member/1400" vote="no">P&aacute;draig MacLochlainn</mpname>
+                        <mpname id="com.kildarestreet/member/1413" vote="no">Niall &Oacute; Donnghaile</mpname>
+                        <mpname id="com.kildarestreet/member/1372" vote="no">Fintan Warfield</mpname>
+                    </mplist>
+                    <mplist vote="abstain">
+                    </mplist>
+            </division>
+        <speech id="com.kildarestreet/seanad/2018-11-27a.110/3" nospeaker="true" time="14:30:00" url="http://debatesarchive.oireachtas.ie/debates%20authoring/debateswebpack.nsf/takes/seanad2018112700002#RR00100"><p>Question declared carried.</p></speech>
+   
+        */
+
+    }
+
+
     private function speech($object) {
 
         $this->answersuffix = "";
@@ -209,7 +315,10 @@ class ConvertAkomantosoToPublicwhip {
         foreach($object as $content) {
             if(isset($content->attributes()->eId)) {
                 $speech .= $content->asXML();
+            } else {
+                print_r($content->attributes());
             }
+            
         }
         $speech .= "</speech>";
 
@@ -223,11 +332,16 @@ class ConvertAkomantosoToPublicwhip {
         // Get time for publicwhip format
         // "2018-12-12T10:30:00+00:00" -> "10:30:00"
         
-        $objAttrs = $object->recordedTime->attributes();
-        $this->date = DateTime::createFromFormat('Y-m-d\TH:i:sP', (string) $objAttrs["time"], new DateTimeZone('Europe/Dublin'));
-        $date = date_format($this->date,'Y-m-d');
-        $time = date_format($this->date,'H:i:s');
-        
+        if($object->recordedTime) {
+            $objAttrs = $object->recordedTime->attributes();
+            $this->date = DateTime::createFromFormat('Y-m-d\TH:i:sP', (string) $objAttrs["time"], new DateTimeZone('Europe/Dublin'));
+            $date = date_format($this->date,'Y-m-d');
+            $time = date_format($this->date,'H:i:s');    
+        } else {
+            $date = NULL;
+            $time = NULL;
+        }
+
         $output = "<$type-heading " .
             'id="' . $this->namespace . '/' . $this->chamber . '/' . $date . $this->revision . '.' . $this->counter . '" ' .
             'nospeaker="true" ' .
